@@ -1,0 +1,8 @@
+{
+    "name": "discord-pro",
+        "version": "1.0.0",
+            "main": "plugin.js",
+                "dependencies": {
+        "ws": "^8.18.0"
+    }
+}

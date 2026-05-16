@@ -1,0 +1,100 @@
+{
+    "Actions": [
+        {
+            "UUID": "com.daniel.discordpro.usercontrol",
+            "Name": "01 - Controle de Usuários",
+            "Tooltip": "Lista usuários e abre menu de controle",
+            "Icon": "assets/user.png",
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.micmute",
+            "Name": "Discord Mic Mute",
+            "Tooltip": "Mutar Microfone Discord",
+            "Icon": "assets/mute.png",
+            "States": [
+                {
+                    "Image": "assets/unmute.png"
+                },
+                {
+                    "Image": "assets/mute.png"
+                }
+            ],
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.deafen",
+            "Name": "Discord Deafen",
+            "Tooltip": "Mutar Audio Discord",
+            "Icon": "assets/deafen.png",
+            "States": [
+                {
+                    "Image": "assets/undeafen.png"
+                },
+                {
+                    "Image": "assets/deafen.png"
+                }
+            ],
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.speaking",
+            "Name": "Indicador de Fala",
+            "Tooltip": "Mostra quem está falando",
+            "Icon": "assets/speaking_off.png",
+            "States": [
+                {
+                    "Image": "assets/speaking_off.png"
+                },
+                {
+                    "Image": "assets/speaking_on.png"
+                }
+            ],
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.volumemute",
+            "Name": "Discord Volume Mute",
+            "Tooltip": "Muta a saída de áudio",
+            "Icon": "assets/volume.png",
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.activity",
+            "Name": "Status Rich Presence",
+            "Tooltip": "Ativa status customizado",
+            "Icon": "assets/discord.png",
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.userinfo",
+            "Name": "Meu Perfil",
+            "Tooltip": "Mostra seu avatar e nome",
+            "Icon": "assets/discord.png",
+            "Controllers": [
+                "Keypad"
+            ]
+        }
+    ],
+    "Author": "Daniel",
+    "Category": "Discord Pro",
+    "CodePath": "plugin.bat",
+    "Description": "Controle Total Discord via RPC",
+    "Name": "Discord Pro Control",
+    "Icon": "assets/discord.png",
+    "SDKVersion": 2,
+    "Version": "4.2",
+    "UUID": "com.daniel.discordpro"
+}
