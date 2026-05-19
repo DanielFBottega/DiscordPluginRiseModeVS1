@@ -75,6 +75,8 @@ class DiscordRPC extends EventEmitter {
         this.selectedUserId = null;
         this.currentPage = 0;
         this.isUpdating = false;
+        this.richPresenceActive = false;
+        this.controlMode = 'volume'; // 'volume' ou 'pan'
     }
 
     loadToken() {
@@ -109,6 +111,8 @@ class DiscordRPC extends EventEmitter {
             const payload = { v: 1, client_id: this.clientId, pid: process.pid };
             log(`Conectado ao Discord pipe ${index}. Enviando handshake...`);
             this.buffer = Buffer.alloc(0);
+            this.currentChannel = null;
+            this.usersInChannel.clear();
             this.send(0, payload);
         });
 
@@ -186,6 +190,11 @@ class DiscordRPC extends EventEmitter {
 
 
     processMessage(opcode, payload) {
+        log(`RCV: cmd=${payload.cmd}, evt=${payload.evt}, status=${payload.evt === 'ERROR' ? 'ERROR' : 'OK'}`);
+        if (payload.evt === 'ERROR') {
+            log(`ERROR Detail: ${JSON.stringify(payload.data)}`);
+        }
+
         if (payload.evt === 'READY') {
             this.accessToken ? this.authenticate() : this.authorize();
         } else if (payload.cmd === 'AUTHORIZE' && payload.data?.code) {
@@ -200,7 +209,7 @@ class DiscordRPC extends EventEmitter {
                 log(`Autenticado como ${this.user.username}`);
                 this.subscribeEvents();
             }
-        } else if (payload.evt === 'VOICE_SETTINGS_UPDATE') {
+        } else if (payload.evt === 'VOICE_SETTINGS_UPDATE' || payload.cmd === 'GET_VOICE_SETTINGS') {
 
             Object.assign(this.voiceState, payload.data);
             this.updateStreamDockState();
@@ -218,21 +227,38 @@ class DiscordRPC extends EventEmitter {
             this.usersInChannel.delete(payload.data.user.id);
             if (this.selectedUserId === payload.data.user.id) this.selectedUserId = null;
             this.updateStreamDockState();
-        } else if (payload.cmd === 'GET_SELECTED_VOICE_CHANNEL' && payload.data) {
-            this.currentChannel = payload.data.id;
-            payload.data.voice_states.forEach(vs => this.updateUserInMap(vs));
+        } else if (payload.cmd === 'GET_SELECTED_VOICE_CHANNEL') {
+            if (payload.data) {
+                const channelId = payload.data.id;
+                if (this.currentChannel !== channelId) {
+                    this.currentChannel = channelId;
+                    this.request('SUBSCRIBE', { channel_id: channelId }, 'VOICE_STATE_CREATE');
+                    this.request('SUBSCRIBE', { channel_id: channelId }, 'VOICE_STATE_UPDATE');
+                    this.request('SUBSCRIBE', { channel_id: channelId }, 'VOICE_STATE_DELETE');
+                    this.request('SUBSCRIBE', { channel_id: channelId }, 'SPEAKING_START');
+                    this.request('SUBSCRIBE', { channel_id: channelId }, 'SPEAKING_STOP');
+                }
+                this.usersInChannel.clear();
+                payload.data.voice_states.forEach(vs => this.updateUserInMap(vs));
+            } else {
+                this.currentChannel = null;
+                this.usersInChannel.clear();
+            }
+            this.updateStreamDockState();
         }
     }
 
     updateUserInMap(vs) {
         if (!vs.user) return;
+        const existing = this.usersInChannel.get(vs.user.id);
         this.usersInChannel.set(vs.user.id, {
             id: vs.user.id,
             username: vs.user.username,
             avatar: vs.user.avatar,
-            volume: vs.volume || 100,
-            mute: vs.mute || false,
-            speaking: vs.voice_state?.speaking || false
+            volume: vs.volume ?? existing?.volume ?? 100,
+            mute: vs.mute ?? existing?.mute ?? false,
+            speaking: vs.voice_state?.speaking ?? existing?.speaking ?? false,
+            pan: existing?.pan || { left: 1.0, right: 1.0 }
         });
         this.updateStreamDockState();
     }
@@ -242,6 +268,8 @@ class DiscordRPC extends EventEmitter {
             this.request('UNSUBSCRIBE', { channel_id: this.currentChannel }, 'VOICE_STATE_CREATE');
             this.request('UNSUBSCRIBE', { channel_id: this.currentChannel }, 'VOICE_STATE_UPDATE');
             this.request('UNSUBSCRIBE', { channel_id: this.currentChannel }, 'VOICE_STATE_DELETE');
+            this.request('UNSUBSCRIBE', { channel_id: this.currentChannel }, 'SPEAKING_START');
+            this.request('UNSUBSCRIBE', { channel_id: this.currentChannel }, 'SPEAKING_STOP');
         }
         this.currentChannel = channelId;
         this.usersInChannel.clear();
@@ -249,7 +277,11 @@ class DiscordRPC extends EventEmitter {
             this.request('SUBSCRIBE', { channel_id: channelId }, 'VOICE_STATE_CREATE');
             this.request('SUBSCRIBE', { channel_id: channelId }, 'VOICE_STATE_UPDATE');
             this.request('SUBSCRIBE', { channel_id: channelId }, 'VOICE_STATE_DELETE');
+            this.request('SUBSCRIBE', { channel_id: channelId }, 'SPEAKING_START');
+            this.request('SUBSCRIBE', { channel_id: channelId }, 'SPEAKING_STOP');
             this.request('GET_SELECTED_VOICE_CHANNEL');
+        } else {
+            this.voiceState.speaking = false;
         }
         this.updateStreamDockState();
     }
@@ -290,8 +322,6 @@ class DiscordRPC extends EventEmitter {
     subscribeEvents() {
         this.request('SUBSCRIBE', {}, 'VOICE_SETTINGS_UPDATE');
         this.request('SUBSCRIBE', {}, 'VOICE_CHANNEL_SELECT');
-        this.request('SUBSCRIBE', { channel_id: null }, 'SPEAKING_START');
-        this.request('SUBSCRIBE', { channel_id: null }, 'SPEAKING_STOP');
         this.request('GET_VOICE_SETTINGS');
         this.request('GET_SELECTED_VOICE_CHANNEL');
     }
@@ -304,12 +334,32 @@ class DiscordRPC extends EventEmitter {
 
     toggleMute() { this.request('SET_VOICE_SETTINGS', { mute: !this.voiceState.mute }); }
     toggleDeafen() { this.request('SET_VOICE_SETTINGS', { deaf: !this.voiceState.deaf }); }
+    toggleNoiseSuppression() { this.request('SET_VOICE_SETTINGS', { noise_suppression: !this.voiceState.noise_suppression }); }
 
     async setUserVolume(userId, volume) {
         const user = this.usersInChannel.get(userId);
         if (user) {
             user.volume = Math.max(0, Math.min(200, volume));
             this.request('SET_USER_VOICE_SETTINGS', { user_id: userId, volume: user.volume });
+            this.updateStreamDockState();
+        }
+    }
+
+    async setUserPan(userId, direction) {
+        const user = this.usersInChannel.get(userId);
+        if (user) {
+            if (!user.pan) user.pan = { left: 1.0, right: 1.0 };
+            if (direction === 'left') {
+                user.pan.left = 1.0;
+                user.pan.right = Math.max(0, parseFloat((user.pan.right - 0.2).toFixed(1)));
+            } else if (direction === 'right') {
+                user.pan.right = 1.0;
+                user.pan.left = Math.max(0, parseFloat((user.pan.left - 0.2).toFixed(1)));
+            } else if (direction === 'center') {
+                user.pan.left = 1.0;
+                user.pan.right = 1.0;
+            }
+            this.request('SET_USER_VOICE_SETTINGS', { user_id: userId, pan: user.pan });
             this.updateStreamDockState();
         }
     }
@@ -323,6 +373,31 @@ class DiscordRPC extends EventEmitter {
         }
     }
 
+    async setActivity(isActive) {
+        if (isActive) {
+            this.request('SET_ACTIVITY', {
+                pid: process.pid,
+                activity: {
+                    details: 'No StreamDock',
+                    state: 'Discord Pro Plugin',
+                    assets: {
+                        large_image: 'discord',
+                        large_text: 'Discord Pro'
+                    },
+                    timestamps: {
+                        start: Date.now()
+                    },
+                    buttons: [
+                        { label: 'Obter Plugin', url: 'https://github.com/DanielFBottega/DiscordPluginRiseModeVS1' }
+                    ]
+                }
+            });
+        } else {
+            this.request('SET_ACTIVITY', { pid: process.pid, activity: null });
+        }
+        this.updateStreamDockState();
+    }
+
     async updateStreamDockState() {
         if (!sdWS || sdWS.readyState !== WebSocket.OPEN || this.isUpdating) return;
         this.isUpdating = true;
@@ -334,45 +409,141 @@ class DiscordRPC extends EventEmitter {
 
             updateAction('com.daniel.discordpro.micmute', { state: this.voiceState.mute ? 1 : 0 });
             updateAction('com.daniel.discordpro.deafen', { state: this.voiceState.deaf ? 1 : 0 });
-            updateAction('com.daniel.discordpro.speaking', { state: this.voiceState.speaking ? 1 : 0 });
 
-            if (this.user) contexts['com.daniel.discordpro.userinfo'].forEach(ctx => setT(ctx, this.user.username));
+            // Atualiza os títulos explicativos dos botões de Mute e Deafen
+            contexts['com.daniel.discordpro.micmute'].forEach(ctx => {
+                setT(ctx, this.voiceState.mute ? "MUTADO" : "ATIVADO");
+            });
+            contexts['com.daniel.discordpro.deafen'].forEach(ctx => {
+                setT(ctx, this.voiceState.deaf ? "MUTADO" : "ATIVADO");
+            });
 
-            const userButtons = Array.from(contexts['com.daniel.discordpro.usercontrol']);
+            // Atualiza o volume geral de saída do Discord
+            const outVol = Math.round(this.voiceState.output?.volume ?? 100);
+            contexts['com.daniel.discordpro.volumemute'].forEach(ctx => {
+                setT(ctx, `VOL: ${outVol}%`);
+            });
+
+            // Atualiza o título do indicador com o nome de quem está falando
+            const speakingList = [];
+            if (this.voiceState.speaking) {
+                speakingList.push(this.user?.username || 'Você');
+            }
+            this.usersInChannel.forEach(u => {
+                if (u.speaking && u.id !== this.user?.id) {
+                    speakingList.push(u.username);
+                }
+            });
+            const speakingTitle = speakingList.length > 0 ? speakingList.join(', ') : 'SILÊNCIO';
+            contexts['com.daniel.discordpro.speaking'].forEach(ctx => setT(ctx, speakingTitle));
+            // O indicador acende (estado 1) se você ou qualquer amigo estiver falando
+            updateAction('com.daniel.discordpro.speaking', { state: speakingList.length > 0 ? 1 : 0 });
+
+            if (this.user) {
+                const av = await getBase64Avatar(this.user.id, this.user.avatar);
+                const nsText = this.voiceState.noise_suppression ? "Krisp: ON" : "Krisp: OFF";
+                contexts['com.daniel.discordpro.userinfo'].forEach(ctx => {
+                    setT(ctx, `${this.user.username}\n${nsText}`);
+                    setI(ctx, av || "");
+                });
+            } else {
+                contexts['com.daniel.discordpro.userinfo'].forEach(ctx => {
+                    setT(ctx, "OFFLINE\n(CONECTANDO)");
+                    setI(ctx, "");
+                });
+            }
+
+            contexts['com.daniel.discordpro.activity'].forEach(ctx => {
+                setT(ctx, this.richPresenceActive ? "STATUS\nATIVADO" : "STATUS\nDESATIVADO");
+            });
+
+            const userButtons = Array.from(contexts['com.daniel.discordpro.usercontrol']).sort((a, b) => {
+                const coordA = contextCoordinates.get(a);
+                const coordB = contextCoordinates.get(b);
+                if (!coordA || !coordB) return 0;
+                if (coordA.row !== coordB.row) return coordA.row - coordB.row;
+                return coordA.column - coordB.column;
+            });
             const sortedUsers = Array.from(this.usersInChannel.values()).filter(u => u.id !== this.user?.id);
 
             if (this.selectedUserId) {
                 const selUser = this.usersInChannel.get(this.selectedUserId);
                 if (selUser) {
+                    const leftPan = Math.round((selUser.pan?.left || 1.0) * 100);
+                    const rightPan = Math.round((selUser.pan?.right || 1.0) * 100);
+                    
+                    let btn2Title = "";
+                    let btn3Title = "";
+                    let btn5Title = "";
+                    
+                    if (this.controlMode === 'pan') {
+                        btn2Title = `PAN ESQ\n(${leftPan}%)`;
+                        btn3Title = `PAN DIR\n(${rightPan}%)`;
+                        btn5Title = `PAN: ${leftPan}/${rightPan}%\n(VER VOL)`;
+                    } else {
+                        btn2Title = "VOL -";
+                        btn3Title = "VOL +";
+                        btn5Title = `VOL: ${Math.round(selUser.volume)}%\n(VER PAN)`;
+                    }
+                    
                     const menuTitles = [
                         selUser.username,
                         selUser.mute ? "UNMUTE" : "MUTE",
-                        "VOL -", "VOL +", "RESET",
-                        `VOL: ${Math.round(selUser.volume)}%`
+                        btn2Title,
+                        btn3Title,
+                        "RESET",
+                        btn5Title
                     ];
                     for (let i = 0; i < userButtons.length; i++) {
                         setT(userButtons[i], menuTitles[i] || "");
                         if (i === 0) {
                             const avatar = await getBase64Avatar(selUser.id, selUser.avatar);
-                            if (avatar) setI(userButtons[i], avatar);
+                            setI(userButtons[i], avatar || "");
+                        } else {
+                            setI(userButtons[i], "");
                         }
                     }
                 }
             } else {
                 const start = this.currentPage * 5;
                 const pageUsers = sortedUsers.slice(start, start + 5);
-                for (let i = 0; i < 6; i++) {
-                    const ctx = userButtons[i]; if (!ctx) continue;
-                    if (i < 5) {
-                        const u = pageUsers[i];
-                        if (u) {
-                            setT(ctx, u.username);
-                            const av = await getBase64Avatar(u.id, u.avatar);
-                            if (av) setI(ctx, av);
-                        } else { setT(ctx, ""); setI(ctx, ""); }
-                    } else {
-                        setT(ctx, sortedUsers.length > 5 ? "PRÓX. ->" : "");
+                
+                if (!this.currentChannel) {
+                    // Sem estar conectado a canais de voz
+                    for (let i = 0; i < 6; i++) {
+                        const ctx = userButtons[i]; if (!ctx) continue;
+                        if (i === 2) {
+                            setT(ctx, "ENTRE EM UM\nCANAL DE VOZ");
+                        } else {
+                            setT(ctx, "");
+                        }
                         setI(ctx, "");
+                    }
+                } else if (sortedUsers.length === 0) {
+                    // Sozinho no canal
+                    for (let i = 0; i < 6; i++) {
+                        const ctx = userButtons[i]; if (!ctx) continue;
+                        if (i === 2) {
+                            setT(ctx, "CANAL VAZIO\n(SEM AMIGOS)");
+                        } else {
+                            setT(ctx, "");
+                        }
+                        setI(ctx, "");
+                    }
+                } else {
+                    for (let i = 0; i < 6; i++) {
+                        const ctx = userButtons[i]; if (!ctx) continue;
+                        if (i < 5) {
+                            const u = pageUsers[i];
+                            if (u) {
+                                setT(ctx, u.username);
+                                const av = await getBase64Avatar(u.id, u.avatar);
+                                setI(ctx, av || "");
+                            } else { setT(ctx, ""); setI(ctx, ""); }
+                        } else {
+                            setT(ctx, sortedUsers.length > 5 ? "PRÓX. ->" : "");
+                            setI(ctx, "");
+                        }
                     }
                 }
             }
@@ -392,6 +563,7 @@ const contexts = {
     'com.daniel.discordpro.activity': new Set(), 'com.daniel.discordpro.userinfo': new Set(),
     'com.daniel.discordpro.usercontrol': new Set()
 };
+const contextCoordinates = new Map();
 
 const discord = new DiscordRPC(CLIENT_ID, CLIENT_SECRET);
 discord.connect();
@@ -411,23 +583,66 @@ function connectStreamDock() {
     sdWS.on('message', (data) => {
         const { event, action, context, payload } = JSON.parse(data);
         if (event === 'willAppear') {
-            if (contexts[action]) contexts[action].add(context);
+            if (contexts[action]) {
+                contexts[action].add(context);
+                if (payload && payload.coordinates) {
+                    contextCoordinates.set(context, payload.coordinates);
+                }
+            }
             discord.updateStreamDockState();
         } else if (event === 'willDisappear') {
-            if (contexts[action]) contexts[action].delete(context);
+            if (contexts[action]) {
+                contexts[action].delete(context);
+                contextCoordinates.delete(context);
+            }
         } else if (event === 'keyUp') {
             if (action === 'com.daniel.discordpro.micmute') discord.toggleMute();
             if (action === 'com.daniel.discordpro.deafen') discord.toggleDeafen();
+            if (action === 'com.daniel.discordpro.volumemute') discord.toggleDeafen();
+            if (action === 'com.daniel.discordpro.activity') {
+                discord.richPresenceActive = !discord.richPresenceActive;
+                discord.setActivity(discord.richPresenceActive);
+            }
+            if (action === 'com.daniel.discordpro.userinfo') {
+                discord.toggleNoiseSuppression();
+            }
             if (action === 'com.daniel.discordpro.usercontrol') {
-                const buttons = Array.from(contexts['com.daniel.discordpro.usercontrol']);
+                const buttons = Array.from(contexts['com.daniel.discordpro.usercontrol']).sort((a, b) => {
+                    const coordA = contextCoordinates.get(a);
+                    const coordB = contextCoordinates.get(b);
+                    if (!coordA || !coordB) return 0;
+                    if (coordA.row !== coordB.row) return coordA.row - coordB.row;
+                    return coordA.column - coordB.column;
+                });
                 const index = buttons.indexOf(context);
                 if (discord.selectedUserId) {
                     const user = discord.usersInChannel.get(discord.selectedUserId);
-                    if (index === 0) discord.selectedUserId = null;
+                    if (index === 0) {
+                        discord.selectedUserId = null;
+                        discord.controlMode = 'volume';
+                    }
                     if (index === 1) discord.toggleUserMute(discord.selectedUserId);
-                    if (index === 2) discord.setUserVolume(discord.selectedUserId, (user?.volume || 100) - 10);
-                    if (index === 3) discord.setUserVolume(discord.selectedUserId, (user?.volume || 100) + 10);
-                    if (index === 4) discord.setUserVolume(discord.selectedUserId, 100);
+                    if (index === 2) {
+                        if (discord.controlMode === 'pan') {
+                            discord.setUserPan(discord.selectedUserId, 'left');
+                        } else {
+                            discord.setUserVolume(discord.selectedUserId, (user?.volume || 100) - 10);
+                        }
+                    }
+                    if (index === 3) {
+                        if (discord.controlMode === 'pan') {
+                            discord.setUserPan(discord.selectedUserId, 'right');
+                        } else {
+                            discord.setUserVolume(discord.selectedUserId, (user?.volume || 100) + 10);
+                        }
+                    }
+                    if (index === 4) {
+                        discord.setUserVolume(discord.selectedUserId, 100);
+                        discord.setUserPan(discord.selectedUserId, 'center');
+                    }
+                    if (index === 5) {
+                        discord.controlMode = discord.controlMode === 'volume' ? 'pan' : 'volume';
+                    }
                 } else {
                     if (index < 5) {
                         const sortedUsers = Array.from(discord.usersInChannel.values()).filter(u => u.id !== discord.user?.id);
@@ -440,9 +655,25 @@ function connectStreamDock() {
                 discord.updateStreamDockState();
             }
         } else if (event === 'dialRotate') {
-            if (action === 'com.daniel.discordpro.usercontrol' && discord.selectedUserId) {
-                const user = discord.usersInChannel.get(discord.selectedUserId);
-                if (user) discord.setUserVolume(discord.selectedUserId, (user.volume || 100) + payload.ticks * 5);
+            if (action === 'com.daniel.discordpro.usercontrol') {
+                let targetUserId = discord.selectedUserId;
+                if (!targetUserId) {
+                    const speakingUser = Array.from(discord.usersInChannel.values())
+                        .find(u => u.speaking && u.id !== discord.user?.id);
+                    if (speakingUser) targetUserId = speakingUser.id;
+                }
+                if (targetUserId) {
+                    const user = discord.usersInChannel.get(targetUserId);
+                    if (user) discord.setUserVolume(targetUserId, (user.volume || 100) + payload.ticks * 5);
+                }
+            } else if (action === 'com.daniel.discordpro.volumemute' || action === 'com.daniel.discordpro.deafen') {
+                const currentVol = discord.voiceState.output?.volume ?? 100;
+                const newVol = Math.max(0, Math.min(200, currentVol + payload.ticks * 5));
+                discord.request('SET_VOICE_SETTINGS', { output: { volume: newVol } });
+            } else if (action === 'com.daniel.discordpro.micmute') {
+                const currentVol = discord.voiceState.input?.volume ?? 100;
+                const newVol = Math.max(0, Math.min(100, currentVol + payload.ticks * 5));
+                discord.request('SET_VOICE_SETTINGS', { input: { volume: newVol } });
             }
         }
     });

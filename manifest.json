@@ -5,8 +5,14 @@
             "Name": "01 - Controle de Usuários",
             "Tooltip": "Lista usuários e abre menu de controle",
             "Icon": "assets/user.png",
+            "States": [
+                {
+                    "Image": "assets/user.png"
+                }
+            ],
             "Controllers": [
-                "Keypad"
+                "Keypad",
+                "Encoder"
             ]
         },
         {
@@ -23,7 +29,8 @@
                 }
             ],
             "Controllers": [
-                "Keypad"
+                "Keypad",
+                "Encoder"
             ]
         },
         {
@@ -40,7 +47,8 @@
                 }
             ],
             "Controllers": [
-                "Keypad"
+                "Keypad",
+                "Encoder"
             ]
         },
         {
@@ -65,8 +73,14 @@
             "Name": "Discord Volume Mute",
             "Tooltip": "Muta a saída de áudio",
             "Icon": "assets/volume.png",
+            "States": [
+                {
+                    "Image": "assets/volume.png"
+                }
+            ],
             "Controllers": [
-                "Keypad"
+                "Keypad",
+                "Encoder"
             ]
         },
         {
@@ -74,6 +88,11 @@
             "Name": "Status Rich Presence",
             "Tooltip": "Ativa status customizado",
             "Icon": "assets/discord.png",
+            "States": [
+                {
+                    "Image": "assets/discord.png"
+                }
+            ],
             "Controllers": [
                 "Keypad"
             ]
@@ -83,6 +102,11 @@
             "Name": "Meu Perfil",
             "Tooltip": "Mostra seu avatar e nome",
             "Icon": "assets/discord.png",
+            "States": [
+                {
+                    "Image": "assets/discord.png"
+                }
+            ],
             "Controllers": [
                 "Keypad"
             ]
