@@ -543,7 +543,10 @@ const contexts = {
     'com.daniel.discordpro.micmute': new Set(), 'com.daniel.discordpro.deafen': new Set(),
     'com.daniel.discordpro.speaking': new Set(), 'com.daniel.discordpro.volumemute': new Set(),
     'com.daniel.discordpro.activity': new Set(), 'com.daniel.discordpro.userinfo': new Set(),
-    'com.daniel.discordpro.usercontrol': new Set()
+    'com.daniel.discordpro.usercontrol': new Set(),
+    'com.daniel.discordpro.uservolumedown': new Set(), 'com.daniel.discordpro.uservolumeup': new Set(),
+    'com.daniel.discordpro.generalvolumedown': new Set(), 'com.daniel.discordpro.generalvolumeup': new Set(),
+    'com.daniel.discordpro.micvolumedown': new Set(), 'com.daniel.discordpro.micvolumeup': new Set()
 };
 const contextCoordinates = new Map();
 
@@ -563,7 +566,9 @@ function connectStreamDock() {
     sdWS.on('error', (e) => log('Erro StreamDock WS: ' + e.message));
     sdWS.on('open', () => sdWS.send(JSON.stringify({ event: registerEvent, uuid: pluginUUID })));
     sdWS.on('message', (data) => {
-        const { event, action, context, payload } = JSON.parse(data);
+        const parsed = JSON.parse(data);
+        const { event, action, context, payload } = parsed;
+        log(`WS Event recebido: ${event} | Action: ${action}`);
         if (event === 'willAppear') {
             if (contexts[action]) {
                 contexts[action].add(context);
@@ -587,6 +592,50 @@ function connectStreamDock() {
             }
             if (action === 'com.daniel.discordpro.userinfo') {
                 discord.toggleNoiseSuppression();
+            }
+            if (action === 'com.daniel.discordpro.uservolumedown') {
+                let targetUserId = discord.selectedUserId;
+                if (!targetUserId) {
+                    const speakingUser = Array.from(discord.usersInChannel.values())
+                        .find(u => u.speaking && u.id !== discord.user?.id);
+                    if (speakingUser) targetUserId = speakingUser.id;
+                }
+                if (targetUserId) {
+                    const user = discord.usersInChannel.get(targetUserId);
+                    if (user) discord.setUserVolume(targetUserId, Math.max(0, (user.volume || 100) - 5));
+                }
+            }
+            if (action === 'com.daniel.discordpro.uservolumeup') {
+                let targetUserId = discord.selectedUserId;
+                if (!targetUserId) {
+                    const speakingUser = Array.from(discord.usersInChannel.values())
+                        .find(u => u.speaking && u.id !== discord.user?.id);
+                    if (speakingUser) targetUserId = speakingUser.id;
+                }
+                if (targetUserId) {
+                    const user = discord.usersInChannel.get(targetUserId);
+                    if (user) discord.setUserVolume(targetUserId, Math.min(200, (user.volume || 100) + 5));
+                }
+            }
+            if (action === 'com.daniel.discordpro.generalvolumedown') {
+                const currentVol = discord.voiceState.output?.volume ?? 100;
+                const newVol = Math.max(0, currentVol - 5);
+                discord.request('SET_VOICE_SETTINGS', { output: { volume: newVol } });
+            }
+            if (action === 'com.daniel.discordpro.generalvolumeup') {
+                const currentVol = discord.voiceState.output?.volume ?? 100;
+                const newVol = Math.min(200, currentVol + 5);
+                discord.request('SET_VOICE_SETTINGS', { output: { volume: newVol } });
+            }
+            if (action === 'com.daniel.discordpro.micvolumedown') {
+                const currentVol = discord.voiceState.input?.volume ?? 100;
+                const newVol = Math.max(0, currentVol - 5);
+                discord.request('SET_VOICE_SETTINGS', { input: { volume: newVol } });
+            }
+            if (action === 'com.daniel.discordpro.micvolumeup') {
+                const currentVol = discord.voiceState.input?.volume ?? 100;
+                const newVol = Math.min(100, currentVol + 5);
+                discord.request('SET_VOICE_SETTINGS', { input: { volume: newVol } });
             }
             if (action === 'com.daniel.discordpro.usercontrol') {
                 const buttons = Array.from(contexts['com.daniel.discordpro.usercontrol']).sort((a, b) => {

@@ -110,6 +110,90 @@
             "Controllers": [
                 "Keypad"
             ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.uservolumedown",
+            "Name": "Vol. Usuário -",
+            "Tooltip": "Abaixa o volume do amigo",
+            "Icon": "assets/volume.png",
+            "States": [
+                {
+                    "Image": "assets/volume.png"
+                }
+            ],
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.uservolumeup",
+            "Name": "Vol. Usuário +",
+            "Tooltip": "Aumenta o volume do amigo",
+            "Icon": "assets/volume.png",
+            "States": [
+                {
+                    "Image": "assets/volume.png"
+                }
+            ],
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.generalvolumedown",
+            "Name": "Vol. Geral -",
+            "Tooltip": "Abaixa o áudio geral",
+            "Icon": "assets/volume.png",
+            "States": [
+                {
+                    "Image": "assets/volume.png"
+                }
+            ],
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.generalvolumeup",
+            "Name": "Vol. Geral +",
+            "Tooltip": "Aumenta o áudio geral",
+            "Icon": "assets/volume.png",
+            "States": [
+                {
+                    "Image": "assets/volume.png"
+                }
+            ],
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.micvolumedown",
+            "Name": "Vol. Microfone -",
+            "Tooltip": "Abaixa o volume do mic",
+            "Icon": "assets/volume.png",
+            "States": [
+                {
+                    "Image": "assets/volume.png"
+                }
+            ],
+            "Controllers": [
+                "Keypad"
+            ]
+        },
+        {
+            "UUID": "com.daniel.discordpro.micvolumeup",
+            "Name": "Vol. Microfone +",
+            "Tooltip": "Aumenta o volume do mic",
+            "Icon": "assets/volume.png",
+            "States": [
+                {
+                    "Image": "assets/volume.png"
+                }
+            ],
+            "Controllers": [
+                "Keypad"
+            ]
         }
     ],
     "Author": "Daniel",
