@@ -24,15 +24,13 @@ Otimização total para dispositivos com potenciômetros giratórios (como o Ris
 ---
 
 ### 👥 2. Gerenciamento Completo de Usuários & Áudio
-Navegue pelos amigos conectados ao seu canal de voz e controle o áudio individual com feedback visual dinâmico:
-* **Lista de Usuários com Foto:** Os avatares e nomes reais dos membros do canal são desenhados diretamente nas teclas LCD.
-* **Menu de Controle Individual:** Ao clicar em um usuário, abre-se um submenu de 6 botões:
-  1. **Avatar/Nome:** Mostra quem você está controlando (clicar volta ao menu principal).
-  2. **MUTE / UNMUTE:** Muta o usuário no seu cliente de áudio local.
-  3. **VOL - / PAN ESQ:** Diminui o volume ou balanceia o áudio para a esquerda.
-  4. **VOL + / PAN DIR:** Aumenta o volume ou balanceia o áudio para a direita.
-  5. **RESET:** Redefine o volume para 100% e centraliza o balanço de áudio.
-  6. **MODO DUAL (`VOL` / `PAN`):** Alterna dinamicamente as teclas 3 e 4 entre controle de Volume e controle de Pan (balanço de áudio).
+Navegue pelos amigos conectados ao seu canal de voz e controle o áudio individual com feedback visual dinâmico nas 6 teclas LCD dedicadas:
+1. **Avatar/Nome:** Mostra quem você está controlando (clicar volta ao menu principal).
+2. **MUTE / UNMUTE:** Muta/desmuta o usuário no seu cliente local de áudio.
+3. **VOL -:** Diminui o volume do usuário selecionado em 10% por clique.
+4. **VOL +:** Aumenta o volume do usuário selecionado em 10% por clique.
+5. **RESET:** Redefine o volume do usuário de volta para 100%.
+6. **VOL: X%:** Exibe em tempo real o volume atual do usuário na tela LCD.
 
 ---
 

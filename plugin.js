@@ -76,7 +76,6 @@ class DiscordRPC extends EventEmitter {
         this.currentPage = 0;
         this.isUpdating = false;
         this.richPresenceActive = false;
-        this.controlMode = 'volume'; // 'volume' ou 'pan'
     }
 
     loadToken() {
@@ -469,30 +468,13 @@ class DiscordRPC extends EventEmitter {
             if (this.selectedUserId) {
                 const selUser = this.usersInChannel.get(this.selectedUserId);
                 if (selUser) {
-                    const leftPan = Math.round((selUser.pan?.left || 1.0) * 100);
-                    const rightPan = Math.round((selUser.pan?.right || 1.0) * 100);
-                    
-                    let btn2Title = "";
-                    let btn3Title = "";
-                    let btn5Title = "";
-                    
-                    if (this.controlMode === 'pan') {
-                        btn2Title = `PAN ESQ\n(${leftPan}%)`;
-                        btn3Title = `PAN DIR\n(${rightPan}%)`;
-                        btn5Title = `PAN: ${leftPan}/${rightPan}%\n(VER VOL)`;
-                    } else {
-                        btn2Title = "VOL -";
-                        btn3Title = "VOL +";
-                        btn5Title = `VOL: ${Math.round(selUser.volume)}%\n(VER PAN)`;
-                    }
-                    
                     const menuTitles = [
                         selUser.username,
                         selUser.mute ? "UNMUTE" : "MUTE",
-                        btn2Title,
-                        btn3Title,
+                        "VOL -",
+                        "VOL +",
                         "RESET",
-                        btn5Title
+                        `VOL: ${Math.round(selUser.volume)}%`
                     ];
                     for (let i = 0; i < userButtons.length; i++) {
                         setT(userButtons[i], menuTitles[i] || "");
@@ -619,29 +601,16 @@ function connectStreamDock() {
                     const user = discord.usersInChannel.get(discord.selectedUserId);
                     if (index === 0) {
                         discord.selectedUserId = null;
-                        discord.controlMode = 'volume';
                     }
                     if (index === 1) discord.toggleUserMute(discord.selectedUserId);
                     if (index === 2) {
-                        if (discord.controlMode === 'pan') {
-                            discord.setUserPan(discord.selectedUserId, 'left');
-                        } else {
-                            discord.setUserVolume(discord.selectedUserId, (user?.volume || 100) - 10);
-                        }
+                        discord.setUserVolume(discord.selectedUserId, (user?.volume || 100) - 10);
                     }
                     if (index === 3) {
-                        if (discord.controlMode === 'pan') {
-                            discord.setUserPan(discord.selectedUserId, 'right');
-                        } else {
-                            discord.setUserVolume(discord.selectedUserId, (user?.volume || 100) + 10);
-                        }
+                        discord.setUserVolume(discord.selectedUserId, (user?.volume || 100) + 10);
                     }
                     if (index === 4) {
                         discord.setUserVolume(discord.selectedUserId, 100);
-                        discord.setUserPan(discord.selectedUserId, 'center');
-                    }
-                    if (index === 5) {
-                        discord.controlMode = discord.controlMode === 'volume' ? 'pan' : 'volume';
                     }
                 } else {
                     if (index < 5) {
